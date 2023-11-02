@@ -49,11 +49,11 @@ func main() {
 		fmt.Println("Неверное значение, по умолчанию метод исполнения 1")
 		method = 1
 	}
-	if method > 2 {
-		method = 2
+	if method > 2 || method < 1 {
+		method = 1
 	}
 	go sender(c, &wg)
-	go recv(c, &wg, 2)
+	go recv(c, &wg, method)
 	wg.Add(2)
 	wg.Wait()
 }
