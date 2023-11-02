@@ -2,69 +2,58 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
+	"sync"
 )
 
-// Случайное целочисленное число
-func RandInt(min int, max int) int {
-	return min + rand.Intn(max-min)
+// Отправитель
+func sender(c chan<- int, wg *sync.WaitGroup) {
+	defer func() {
+		close(c)
+		wg.Done()
+	}()
+	for i := 1; i <= 100; i++ {
+		c <- i
+	}
 }
 
-func main() {
-	rand.Seed(time.Now().Unix())
-	c1 := make(chan int)
-	c2 := make(chan int)
-	var method int
-	//Отправитель сообщений
-	sender := func() {
-		for {
-			//С помощью этой переменной будем определять
-			//в какой канал отправлять сообщение
-			chance := RandInt(1, 100)
-			//Если число в chance меньше либо равно 50, отправляем сообщение в канал c1,
-			//если больше 50, то в канал c2
-			<-time.Tick(time.Second * time.Duration(RandInt(1, 5)))
-			if chance <= 50 {
-				c1 <- RandInt(1, 100)
-			} else {
-				c2 <- RandInt(1, 100)
-			}
-		}
-	}
-
-	fmt.Println("Метод прослушивание каналов (1 - time.After, 2 - default): ")
-	_, err := fmt.Scanln(&method)
-	if err != nil {
-		fmt.Println("Неверное значение, метод установлен по умолчанию на 1")
-		method = 1
-	}
-
-	go sender()
+// Получающий
+func recv(c <-chan int, wg *sync.WaitGroup, method int) {
+	defer func() {
+		wg.Done()
+	}()
 
 	if method == 1 {
-		//Пример с time.After() (ожидание ответа от каждого канала 2 сек)
 		for {
 			select {
-			case num := <-c1:
-				fmt.Println("Канал с1 принял сообщение: ", num)
-			case num := <-c2:
-				fmt.Println("Канал с2 принял сообщение: ", num)
-			case <-time.After(2 * time.Second):
-				fmt.Println("Время: ", time.Now().Format("15:04"))
+			case num, ok := <-c:
+				if !ok {
+					return
+				}
+				fmt.Println(num)
 			}
 		}
 	} else {
-		//Пример с default
-		for {
-			select {
-			case num := <-c1:
-				fmt.Println("Канал с1 принял сообщение: ", num)
-			case num := <-c2:
-				fmt.Println("Канал с2 принял сообщение: ", num)
-			default:
-				fmt.Println("Время: ", time.Now().Format("15:04"))
-			}
+		for num := range c {
+			fmt.Println(num)
 		}
 	}
+}
+
+func main() {
+	c := make(chan int, 100)
+	var wg sync.WaitGroup
+	var method int
+	fmt.Println("Выберите метод исполнения (1 - select, 2 - range): ")
+	_, err := fmt.Scanln(&method)
+	if err != nil {
+		fmt.Println("Неверное значение, по умолчанию метод исполнения 1")
+		method = 1
+	}
+	if method > 2 {
+		method = 2
+	}
+	go sender(c, &wg)
+	go recv(c, &wg, 2)
+	wg.Add(2)
+	wg.Wait()
 }
